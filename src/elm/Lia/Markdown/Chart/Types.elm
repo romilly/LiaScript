@@ -1,4 +1,9 @@
-module Lia.Markdown.Chart.Types exposing (Chart, Diagram(..), Point)
+module Lia.Markdown.Chart.Types exposing
+    ( Chart
+    , Diagram(..)
+    , Labels
+    , Point
+    )
 
 import Dict exposing (Dict)
 
@@ -11,12 +16,20 @@ type alias Point =
 
 type alias Chart =
     { title : String
-    , y_label : String
-    , x_label : String
+    , yLabel : String
+    , xLabel : String
+    , legend : List String
     , diagrams : Dict Char Diagram
     }
 
 
+type alias Labels =
+    { main : Maybe String
+    , x : Maybe String
+    , y : Maybe String
+    }
+
+
 type Diagram
-    = Line (List Point)
-    | Dots (List Point)
+    = Lines (List Point) (Maybe String)
+    | Dots (List Point) (Maybe String)

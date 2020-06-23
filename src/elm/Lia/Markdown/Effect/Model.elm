@@ -14,7 +14,8 @@ module Lia.Markdown.Effect.Model exposing
 
 import Array exposing (Array)
 import Dict exposing (Dict)
-import Lia.Markdown.Inline.Types exposing (Annotation, Inlines)
+import Lia.Markdown.HTML.Attributes exposing (Parameters)
+import Lia.Markdown.Inline.Types exposing (Inlines)
 
 
 type alias Model =
@@ -22,6 +23,7 @@ type alias Model =
     , effects : Int
     , comments : Map Element
     , javascript : Map (List String)
+    , speaking : Maybe Int
     }
 
 
@@ -32,7 +34,7 @@ type alias Map e =
 type alias Element =
     { narrator : String
     , comment : String
-    , paragraphs : Array ( Annotation, Inlines )
+    , paragraphs : Array ( Parameters, Inlines )
     }
 
 
@@ -71,7 +73,7 @@ get_all_javascript model =
         |> List.concat
 
 
-set_annotation : Int -> Int -> Map Element -> Annotation -> Map Element
+set_annotation : Int -> Int -> Map Element -> Parameters -> Map Element
 set_annotation id1 id2 m attr =
     case Dict.get id1 m of
         Just e ->
@@ -92,7 +94,7 @@ set_annotation id1 id2 m attr =
             m
 
 
-get_paragraph : Int -> Int -> Model -> Maybe ( Annotation, Inlines )
+get_paragraph : Int -> Int -> Model -> Maybe ( Parameters, Inlines )
 get_paragraph id1 id2 model =
     case
         model.comments
@@ -107,7 +109,7 @@ get_paragraph id1 id2 model =
             Nothing
 
 
-current_paragraphs : Model -> List ( Annotation, Inlines )
+current_paragraphs : Model -> List ( Parameters, Inlines )
 current_paragraphs model =
     case Dict.get model.visible model.comments of
         Just e ->
@@ -126,4 +128,9 @@ current_comment model =
 
 init : Model
 init =
-    Model 0 0 Dict.empty Dict.empty
+    Model
+        0
+        0
+        Dict.empty
+        Dict.empty
+        Nothing

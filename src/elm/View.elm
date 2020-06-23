@@ -21,7 +21,10 @@ view model =
         case model.state of
             Running ->
                 [ model.lia
-                    |> Lia.Script.view model.session.screen
+                    |> Lia.Script.view
+                        model.session.screen
+                        model.session.share
+                        model.hasIndex
                     |> Html.map LiaScript
                 ]
 
@@ -49,7 +52,9 @@ view model =
                     [ -- Html.h1 [] [ Html.text ("Parsing - " ++ (String.fromInt <| Array.length model.lia.sections)) ]
                       Html.h1 [] [ Html.text ("Parsing : " ++ (String.slice 0 5 <| String.fromFloat (100 - (percent / model.size * 100))) ++ "%") ]
                     , Html.br [] []
-                    , Html.div [ Attr.class "lds-dual-ring" ] []
+
+                    --, Html.div [ Attr.class "lds-dual-ring" ] []
+                    , Html.progress [ Attr.style "width" "70%", Attr.max "100", Attr.value (String.slice 0 5 <| String.fromFloat (100 - (percent / model.size * 100))) ] []
                     ]
                 ]
 

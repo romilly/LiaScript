@@ -1,8 +1,9 @@
 module Lia.Markdown.Inline.Json.Encode exposing (encode)
 
 import Json.Encode as JE
+import Lia.Markdown.HTML.Attributes exposing (Parameters)
 import Lia.Markdown.HTML.Types as HTML
-import Lia.Markdown.Inline.Types exposing (Annotation, Inline(..), Inlines, Reference(..))
+import Lia.Markdown.Inline.Types exposing (Inline(..), Inlines, Reference(..))
 
 
 encode : Inlines -> JE.Value
@@ -70,10 +71,17 @@ encInline element =
                 , ( "a", encAnnotation a )
                 ]
 
-            EInline i j list a ->
-                [ ( "EInline", encode list )
-                , ( "i", JE.int i )
-                , ( "j", JE.int j )
+            EInline e a ->
+                [ ( "EInline", encode e.content )
+                , ( "begin", JE.int e.begin )
+                , ( "end"
+                  , e.end
+                        |> Maybe.map JE.int
+                        |> Maybe.withDefault JE.null
+                  )
+                , ( "playback", JE.bool e.playback )
+                , ( "voice", JE.string e.voice )
+                , ( "id", JE.int e.id )
                 , ( "a", encAnnotation a )
                 ]
 
@@ -131,11 +139,13 @@ encMultimedia class list ( stream, url ) title =
         ]
 
 
-encAnnotation : Annotation -> JE.Value
+encAnnotation : Parameters -> JE.Value
 encAnnotation annotation =
     case annotation of
-        Just a ->
-            JE.dict identity JE.string a
-
-        Nothing ->
+        [] ->
             JE.null
+
+        _ ->
+            annotation
+                |> List.map (\( key, value ) -> JE.list JE.string [ key, value ])
+                |> JE.list identity

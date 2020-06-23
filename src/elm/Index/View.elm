@@ -34,7 +34,7 @@ import Lia.Markdown.Inline.View as Inline
 import Lia.Parser.PatReplace exposing (link)
 import Lia.Settings.Model exposing (Mode(..))
 import Session exposing (Session)
-import Url
+import Translations exposing (Lang(..))
 
 
 scaled : Int -> Float -> Int
@@ -469,4 +469,4 @@ get_active course =
 
 inlines : Inlines -> List (Html msg)
 inlines =
-    List.map (Inline.view_inf Textbook)
+    List.map (Inline.view_inf En)

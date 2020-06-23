@@ -58,14 +58,15 @@ load_first_slide : Session -> Model -> ( Model, Cmd Msg, List Event )
 load_first_slide session model =
     load_slide
         session
-        (if model.section_active > pages model then
-            0
+        (if model.section_active >= pages model then
+            pages model - 1
 
          else
             model.section_active
         )
         { model
-            | search_index =
+            | title = get_title model.sections
+            , search_index =
                 model.sections
                     |> Array.map (.title >> stringify >> String.trim)
                     |> Array.toList
@@ -176,10 +177,8 @@ get_title sections =
     sections
         |> Array.get 0
         |> Maybe.map .title
-        |> Maybe.map stringify
+        |> Maybe.map (stringify >> String.trim)
         |> Maybe.withDefault "Lia"
-        |> String.trim
-        |> (++) "Lia: "
 
 
 filterIndex : String -> ( String, String ) -> Bool
@@ -203,12 +202,12 @@ searchIndex index str =
             str
 
 
-init : JE.Value -> String -> String -> String -> Maybe Int -> Model
+init : Int -> JE.Value -> String -> String -> String -> Maybe Int -> Model
 init =
     Lia.Model.init
 
 
-view : Screen -> Model -> Html Msg
+view : Screen -> Bool -> Bool -> Model -> Html Msg
 view =
     Lia.View.view
 

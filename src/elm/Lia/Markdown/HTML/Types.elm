@@ -8,28 +8,40 @@ module Lia.Markdown.HTML.Types exposing
 import Dict
 import Json.Decode as JD
 import Json.Encode as JE
+import Lia.Markdown.HTML.Attributes exposing (Parameters)
 
 
 type Node content
-    = Node String (List ( String, String )) (List content)
+    = Node String Parameters (List content)
+    | NodeX String
 
 
 getContent : Node content -> List content
-getContent (Node _ _ content) =
-    content
+getContent node =
+    case node of
+        Node _ _ content ->
+            content
+
+        NodeX _ ->
+            []
 
 
 encode : (content -> JE.Value) -> Node content -> JE.Value
-encode contentEncoder (Node node attr children) =
-    JE.object
-        [ ( "node", JE.string node )
-        , ( "attr"
-          , attr
-                |> Dict.fromList
-                |> JE.dict identity JE.string
-          )
-        , ( "children", JE.list contentEncoder children )
-        ]
+encode contentEncoder obj =
+    JE.object <|
+        case obj of
+            Node node attr children ->
+                [ ( "node", JE.string node )
+                , ( "attr"
+                  , attr
+                        |> Dict.fromList
+                        |> JE.dict identity JE.string
+                  )
+                , ( "children", JE.list contentEncoder children )
+                ]
+
+            NodeX content ->
+                [ ( "nodex", JE.string content ) ]
 
 
 decode : JD.Decoder content -> JD.Decoder (Node content)

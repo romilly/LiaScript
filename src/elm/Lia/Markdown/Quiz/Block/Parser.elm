@@ -17,14 +17,13 @@ import Lia.Markdown.Inline.Parser exposing (parse_inlines)
 import Lia.Markdown.Inline.Types exposing (Inlines)
 import Lia.Markdown.Quiz.Block.Types exposing (Quiz, State(..))
 import Lia.Parser.Context exposing (Context)
-import Lia.Parser.Helper exposing (newline)
+import Lia.Parser.Helper exposing (newline, stringTill)
 
 
 parse : Parser Context Quiz
 parse =
     regex "[\t ]*\\[\\["
-        |> keep (regex "[^\\]]+")
-        |> ignore (string "]]")
+        |> keep (stringTill (string "]]"))
         |> ignore newline
         |> map split
         |> andThen withState
@@ -34,12 +33,13 @@ split : String -> Context -> Parser Context Quiz
 split str state =
     case String.split "|" str of
         [ solution ] ->
-            if
-                solution
-                    |> String.replace "_" " "
-                    |> String.trim
-                    |> String.isEmpty
-            then
+            let
+                str_ =
+                    solution
+                        |> String.replace "_" " "
+                        |> String.trim
+            in
+            if str_ == "?" || str_ == "!" || str_ == "" then
                 fail ""
 
             else

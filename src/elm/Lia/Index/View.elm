@@ -3,10 +3,10 @@ module Lia.Index.View exposing (view, view_search)
 import Array
 import Html exposing (Html)
 import Html.Attributes as Attr
-import Html.Events exposing (onInput)
+import Html.Events exposing (onClick, onInput)
 import Lia.Index.Model exposing (Model)
 import Lia.Index.Update exposing (Msg(..))
-import Lia.Markdown.Inline.View exposing (viewer)
+import Lia.Markdown.Inline.View exposing (view_inf)
 import Lia.Section exposing (Section, Sections)
 import Lia.Settings.Model exposing (Mode(..))
 import Translations exposing (Lang, baseSearch)
@@ -14,29 +14,57 @@ import Translations exposing (Lang, baseSearch)
 
 view_search : Lang -> Model -> Html Msg
 view_search lang model =
-    Html.span [ Attr.class "lia-toolbar", Attr.id "lia-toolbar-index" ]
+    Html.div [ Attr.class "lia-toolbar", Attr.id "lia-toolbar-index" ]
         -- [ Html.span [ Attr.class "lia-icon", Attr.style [ ( "float", "left" ), ( "font-size", "16px" ) ] ] [ Html.text "search" ]
         --, Html.span [ Attr.style [ ( "float", "right" ), ( "max-width", "100px" ), ( "position", "relative" ) ] ]
-        [ Html.input
-            [ Attr.type_ "input"
-            , Attr.value model
-            , Attr.class "lia-input"
-            , Attr.placeholder (baseSearch lang)
-            , Attr.style "max-width" "100%"
-            , onInput ScanIndex
-            , Attr.id "lia-input-search"
+        [ Html.span [ Attr.style "width" "100%", Attr.style "height" "100%" ]
+            [ Html.span
+                [ Attr.style "height" "100%"
+                ]
+                [ Html.input
+                    [ Attr.type_ "search"
+                    , Attr.value model
+                    , Attr.class "lia-input lia-left"
+                    , Attr.placeholder (baseSearch lang)
+                    , Attr.style "width" "calc(100% - 35px)"
+
+                    --, Attr.style "height" "40%"
+                    , onInput ScanIndex
+                    , Attr.id "lia-input-search"
+                    ]
+                    []
+                ]
+            , Html.span
+                [ Attr.style "height" "100%"
+                ]
+                [ if String.isEmpty model then
+                    Html.span
+                        [ Attr.class "lia-icon lia-right"
+                        , Attr.style "padding" "16px 0px"
+                        ]
+                        [ Html.text "" ]
+
+                  else
+                    Html.span
+                        [ Attr.class "lia-icon lia-right"
+                        , onClick <| ScanIndex ""
+                        , Attr.style "padding" "16px 0px"
+                        , Attr.style "cursor" "pointer"
+                        , Attr.style "width" "5%"
+                        ]
+                        [ Html.text "close" ]
+                ]
             ]
-            []
 
         --  ]
         ]
 
 
-view : Int -> Sections -> Html msg
-view active sections =
+view : Lang -> Int -> Sections -> Html msg
+view lang active sections =
     let
         toc_ =
-            toc active
+            toc lang active
     in
     sections
         |> Array.toList
@@ -44,8 +72,8 @@ view active sections =
         |> Html.div [ Attr.class "lia-content" ]
 
 
-toc : Int -> Section -> Html msg
-toc active section =
+toc : Lang -> Int -> Section -> Html msg
+toc lang active section =
     if section.visible then
         Html.a
             [ Attr.class
@@ -72,7 +100,7 @@ toc active section =
                 else
                     ""
             ]
-            (viewer Presentation 9999 section.title)
+            (List.map (view_inf lang) section.title)
 
     else
         Html.text ""

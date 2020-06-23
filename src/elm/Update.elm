@@ -48,7 +48,7 @@ type Msg
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | Load_ReadMe_Result String (Result Http.Error String)
-    | Load_Template_Result (Result Http.Error String)
+    | Load_Template_Result String (Result Http.Error String)
 
 
 subscriptions : Model -> Sub Msg
@@ -65,6 +65,11 @@ message msg =
     Process.sleep 0
         |> Task.andThen (always <| Task.succeed msg)
         |> Task.perform identity
+
+
+proxy : String
+proxy =
+    "https://cors-anywhere.herokuapp.com/"
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -98,11 +103,11 @@ update msg model =
                             Index.decodeGet event.message
                     in
                     ( { model | preload = course }
-                    , download (Load_ReadMe_Result id) id
+                    , download Load_ReadMe_Result id
                     )
 
                 "restore" ->
-                    case Lia.Json.Decode.decode event.message of
+                    case Lia.Json.Decode.decode model.session.screen.width event.message of
                         Ok lia ->
                             start
                                 { model
@@ -113,7 +118,7 @@ update msg model =
 
                         Err info ->
                             ( { model | preload = Nothing }
-                            , download (Load_ReadMe_Result model.lia.readme) model.lia.readme
+                            , download Load_ReadMe_Result model.lia.readme
                             )
 
                 _ ->
@@ -193,18 +198,26 @@ update msg model =
         LiaParse ->
             parsing model
 
-        Load_ReadMe_Result _ (Ok readme) ->
+        Load_ReadMe_Result url (Ok readme) ->
             load_readme readme model
 
         Load_ReadMe_Result url (Err info) ->
-            ( { model | state = Error <| parse_error info }
-            , url
-                |> JE.string
-                |> Event "offline" -1
-                |> event2js
-            )
+            if String.startsWith proxy url then
+                ( { model | state = Error <| parse_error info }
+                , url
+                    |> JE.string
+                    |> Event "offline" -1
+                    |> event2js
+                )
 
-        Load_Template_Result (Ok template) ->
+            else
+                ( model
+                , Session.setQuery (proxy ++ url) model.session
+                    |> .url
+                    |> Session.load
+                )
+
+        Load_Template_Result url (Ok template) ->
             parsing
                 { model
                     | lia =
@@ -220,8 +233,12 @@ update msg model =
                                 model.state
                 }
 
-        Load_Template_Result (Err info) ->
-            ( { model | state = Error <| parse_error info }, Cmd.none )
+        Load_Template_Result url (Err info) ->
+            if String.startsWith proxy url then
+                ( { model | state = Error <| parse_error info }, Cmd.none )
+
+            else
+                ( model, download Load_Template_Result (proxy ++ url) )
 
 
 start : Model -> ( Model, Cmd Msg )
@@ -379,9 +396,12 @@ parse_error msg =
             "Bad body " ++ body
 
 
-download : (Result Http.Error String -> Msg) -> String -> Cmd Msg
+download : (String -> Result Http.Error String -> Msg) -> String -> Cmd Msg
 download msg url =
-    Http.get { url = url, expect = Http.expectString msg }
+    Http.get
+        { url = url
+        , expect = Http.expectString (msg url)
+        }
 
 
 getIndex : String -> Model -> ( Model, Cmd Msg )

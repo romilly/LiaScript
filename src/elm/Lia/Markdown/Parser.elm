@@ -1,6 +1,5 @@
 module Lia.Markdown.Parser exposing (run)
 
-import Array
 import Combine
     exposing
         ( Parser
@@ -17,27 +16,29 @@ import Combine
         , maybe
         , modifyState
         , onsuccess
+        , optional
+        , or
         , regex
         , sepBy1
-        , sepEndBy
         , skip
         , string
         , succeed
         , whitespace
         , withState
         )
-import Dict
 import Lia.Markdown.Chart.Parser as Chart
 import Lia.Markdown.Code.Parser as Code
 import Lia.Markdown.Effect.Model exposing (set_annotation)
 import Lia.Markdown.Effect.Parser as Effect
 import Lia.Markdown.Footnote.Parser as Footnote
+import Lia.Markdown.HTML.Attributes as Attributes exposing (Parameters)
 import Lia.Markdown.HTML.Parser as HTML
-import Lia.Markdown.Inline.Parser exposing (attribute, combine, comment, line)
-import Lia.Markdown.Inline.Types exposing (Annotation, Inline(..), Inlines, MultInlines)
+import Lia.Markdown.Inline.Parser exposing (combine, comment, comments, line, lineWithProblems)
+import Lia.Markdown.Inline.Types exposing (Inline(..), Inlines)
 import Lia.Markdown.Macro.Parser exposing (macro)
 import Lia.Markdown.Quiz.Parser as Quiz
 import Lia.Markdown.Survey.Parser as Survey
+import Lia.Markdown.Table.Parser as Table
 import Lia.Markdown.Types exposing (Markdown(..), MarkdownS)
 import Lia.Parser.Context exposing (Context, indentation, indentation_append, indentation_pop, indentation_skip)
 import Lia.Parser.Helper exposing (c_frame, debug, newline, newlines, spaces)
@@ -76,8 +77,13 @@ blocks =
                         , md_annotations
                             |> map Chart
                             |> andMap Chart.parse
-                        , formated_table
-                        , simple_table
+                        , md_annotations
+                            |> map
+                                (\attr ->
+                                    Table.classify attr
+                                        >> Table attr
+                                )
+                            |> andMap Table.parse
                         , svgbob
                         , md_annotations
                             |> map Code
@@ -85,12 +91,12 @@ blocks =
                         , quote
                         , horizontal_line
                         , md_annotations
+                            |> map Survey
+                            |> andMap Survey.parse
+                        , md_annotations
                             |> map Quiz
                             |> andMap Quiz.parse
                             |> andMap solution
-                        , md_annotations
-                            |> map Survey
-                            |> andMap Survey.parse
                         , md_annotations
                             |> map OrderedList
                             |> andMap ordered_list
@@ -103,6 +109,11 @@ blocks =
                         , md_annotations
                             |> map Paragraph
                             |> andMap paragraph
+                        , md_annotations
+                            |> map Paragraph
+                            |> andMap problem
+                        , comments
+                            |> onsuccess Skip
                         ]
             in
             indentation
@@ -111,10 +122,13 @@ blocks =
                 |> ignore (maybe (whitespace |> keep Effect.hidden_comment))
 
 
-to_comment : ( Annotation, ( Int, Int ) ) -> Parser Context Markdown
+to_comment : ( Parameters, ( Int, Int ) ) -> Parser Context Markdown
 to_comment ( attr, ( id1, id2 ) ) =
     (case attr of
-        Just _ ->
+        [] ->
+            succeed ()
+
+        _ ->
             modifyState
                 (\s ->
                     let
@@ -123,9 +137,6 @@ to_comment ( attr, ( id1, id2 ) ) =
                     in
                     { s | effect_model = { e | comments = set_annotation id1 id2 e.comments attr } }
                 )
-
-        Nothing ->
-            succeed ()
     )
         |> onsuccess (Comment ( id1, id2 ))
 
@@ -199,7 +210,7 @@ unordered_list : Parser Context (List MarkdownS)
 unordered_list =
     indentation_append "  "
         |> keep
-            (regex "[*+-] "
+            (regex "[ \\t]*[*+\\-][ \\t]+"
                 |> keep (sepBy1 (regex "\\n?") blocks)
                 |> many1
             )
@@ -234,59 +245,15 @@ paragraph : Parser Context Inlines
 paragraph =
     indentation_skip
         |> keep (many1 (indentation |> keep line |> ignore newline))
-        |> map (List.intersperse [ Chars " " Nothing ] >> List.concat >> combine)
+        |> map (List.intersperse [ Chars " " [] ] >> List.concat >> combine)
 
 
-table_row : Parser Context MultInlines
-table_row =
-    indentation
-        |> keep
-            (manyTill
-                (string "|" |> keep line)
-                (regex "\\|[\t ]*\\n")
-            )
-
-
-simple_table : Parser Context Markdown
-simple_table =
+problem : Parser Context Inlines
+problem =
     indentation_skip
-        |> keep md_annotations
-        |> map (\a b -> Table a [] [] b)
-        |> andMap (many1 table_row)
-        |> modify_StateTable
-
-
-formated_table : Parser Context Markdown
-formated_table =
-    let
-        format =
-            indentation
-                |> ignore (string "|")
-                |> keep
-                    (sepEndBy (string "|")
-                        (choice
-                            [ regex "[\t ]*:-{3,}:[\t ]*" |> onsuccess "center"
-                            , regex "[\t ]*:-{3,}[\t ]*" |> onsuccess "left"
-                            , regex "[\t ]*-{3,}:[\t ]*" |> onsuccess "right"
-                            , regex "[\t ]*-{3,}[\t ]*" |> onsuccess "left"
-                            ]
-                        )
-                    )
-                |> ignore (regex "[\t ]*\\n")
-    in
-    indentation_skip
-        |> keep md_annotations
-        |> map Table
-        |> andMap table_row
-        |> andMap format
-        |> andMap (many table_row)
-        |> modify_StateTable
-
-
-modify_StateTable : Parser Context (Int -> Markdown) -> Parser Context Markdown
-modify_StateTable =
-    andMap (withState (.table_vector >> Array.length >> succeed))
-        >> ignore (modifyState (\s -> { s | table_vector = Array.push ( -1, False ) s.table_vector }))
+        |> ignore indentation
+        |> keep lineWithProblems
+        |> ignore newline
 
 
 quote : Parser Context Markdown
@@ -305,15 +272,19 @@ quote =
         |> ignore indentation_pop
 
 
-md_annotations : Parser Context Annotation
+md_annotations : Parser Context Parameters
 md_annotations =
+    let
+        attr =
+            withState (.defines >> .base >> succeed)
+                |> andThen Attributes.parse
+    in
     spaces
         |> keep macro
-        |> keep (comment attribute)
-        |> map Dict.fromList
+        |> keep (comment attr)
         |> ignore
             (regex "[\t ]*\\n"
                 |> ignore indentation
                 |> maybe
             )
-        |> maybe
+        |> optional []
